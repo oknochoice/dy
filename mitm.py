@@ -44,7 +44,7 @@ class Singleton_sql(Sql_dy):
 
 class TrackRecorder:
     def response(self, flow: http.HTTPFlow) -> None:
-        ctx.log.info('track record running ------------------------------')
+        #ctx.log.info('track record running ------------------------------')
         if flow.request.url.find('ixigua.com') != -1:
             res = requests.get(flow.request.url, stream = True)
             md5 = hashlib.md5()
@@ -57,8 +57,8 @@ class TrackRecorder:
                 f.flush()
 class UserInfoer:
     def response(self, flow: http.HTTPFlow) -> None:
-        ctx.log.info('userinfo runing -------------------------------')
-        ctx.log.info(flow.request.url)
+        #ctx.log.info('userinfo runing -------------------------------')
+        #ctx.log.info(flow.request.url)
         if flow.request.url.startswith('https://aweme-eagle.snssdk.com/aweme/v1/user'):
             user_res = requests.get(flow.request.url, stream = True)
             data = user_res.json()
@@ -77,27 +77,37 @@ class UserInfoer:
             avatar_t = (md5.hexdigest(), user['uid'], int(time.time()))
             ctx.log.info(avatar_t.__str__())
             Singleton_sql.get_instance().insertAvatars(avatar_t)
-        if flow.request.url.startswith('https://aweme.snssdk.com/aweme/v1/aweme/post'):
-            #ctx.log.info(flow.response.get_text())
+        if flow.request.url.find('/aweme/v1/aweme/post/') != -1:
+            #ctx.log.info('-------------------------------')
+            #ctx.log.info(flow.request.query.fields.__str__())
+            ctx.log.info(flow.request.url)
             res_dict = json.loads(flow.response.get_text())
-            #ctx.log.info('!'.join(video_list))
+            #ctx.log.info(flow.request.url)
+            fields = flow.request.query.fields
+            uid = ""
+            ts = ""
+            for tt in enumerate(fields):
+                if tt[0] == 'user_id':
+                    uid = tt[1]
+                elif tt[0] == 'ts':
+                    ts = tt[1]
             video_list = res_dict['aweme_list']
             for video in enumerate(video_list):
-                ctx.log.info(type(video))
-                url = video['video']['play_addr']['url_list'][0]
+                url = video[1]['video']['play_addr']['url_list'][0]
                 ctx.log.info(url)
                 res = requests.get(url, stream = True)
                 md5 = hashlib.md5()
                 md5.update(res.content)
                 filename = md5.hexdigest() + '.mp4'
                 path = '/Volumes/data/video/' + filename
-                ctx.log.info(path)
+                #ctx.log.info(path)
                 with open(path,  'ab') as f:
                     f.write(res.content)
                     f.flush()
-                params = res.request.params
-                vdio = (md5.hexdigest(),params['uid'], params['ts'])
-                Singleton_sql.get_instance().insertVideo(vdio)
+                ctx.log.info(path)
+                param = (md5.hexdigest(), uid, ts)
+                ctx.log.info(param.__str__())
+                Singleton_sql.get_instance().insertVideo(param)
 
 
 
