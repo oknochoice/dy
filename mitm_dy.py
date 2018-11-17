@@ -10,20 +10,19 @@ import threading
 import logging
 
 class Sql_dy:
-    conn = None
     def __init__(self):
-        conn = sqlite3.connect('dy.db')
-        conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, following_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null)")
-        conn.execute("create index if not exists uid on t_users (uid)")
-        conn.execute("create index if not exists short_id on t_users (short_id)")
-        conn.execute("create index if not exists follower_count on t_users (follower_count)")
-        conn.execute("create index if not exists aweme_count on t_users (aweme_count)")
-        conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_hash text not null, uid text not null, ts int not null, statistics text, unique(uid, md5, web_hash))")
-        conn.execute("create index if not exists web_hash on t_videos (web_hash)")
-        conn.execute("create index if not exists md5 on t_videos (md5)")
-        conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_hash text not null, uid text not null, ts int not null, statistics text)")
-        conn.execute("create table if not exists t_user_avatars (id integer primary key autoincrement, uid text not null, md5 text not null, ts int not null, unique(uid, md5))")
-        conn.commit()
+        self.conn = sqlite3.connect('dy.db')
+        self.conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, following_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null)")
+        self.conn.execute("create index if not exists uid on t_users (uid)")
+        self.conn.execute("create index if not exists short_id on t_users (short_id)")
+        self.conn.execute("create index if not exists follower_count on t_users (follower_count)")
+        self.conn.execute("create index if not exists aweme_count on t_users (aweme_count)")
+        self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_hash text not null, uid text not null, ts int not null, statistics text, unique(uid, md5, web_hash))")
+        self.conn.execute("create index if not exists web_hash on t_videos (web_hash)")
+        self.conn.execute("create index if not exists md5 on t_videos (md5)")
+        self.conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_hash text not null, uid text not null, ts int not null, statistics text)")
+        self.conn.execute("create table if not exists t_user_avatars (id integer primary key autoincrement, uid text not null, md5 text not null, ts int not null, unique(uid, md5))")
+        self.conn.commit()
     def __del__(self):
         Sql_dy.conn.close()
     
