@@ -24,20 +24,25 @@ class Action():
         self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a7y').click()
         self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a7y').send_keys(keyword)
         self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a81').click()
+    def downSwipe(self):
+        self.driver.swipe(430, 1500, 430, 800)
 
     def findAUser(self):
         while True:
             try:
-                user = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a_6')
+                try:
+                    user = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a_6')
+                except:
+                    self.downSwipe()
+                    continue
                 if not operator.eq(user.get_attribute('text'), self.last_user):
                     self.last_user = user.get_attribute('text')
                     return user
                 else:
-                    self.driver.swipe(430, 1500, 430, 800)
+                    self.downSwipe()
                     continue
             except:
-                print('find user error')
-                self.driver.swipe(430, 1500, 430, 1100)
+                print('find user error swipe')
                 continue
 
     def tapUser(self, user):
@@ -69,7 +74,7 @@ class Action():
                 if len(f) == 0:
                     l = self.driver.find_elements_by_xpath(class_text)
                     if len(l) == 0:
-                        self.driver.swipe(430, 1500, 430, 800)
+                        self.downSwipe()
                         continue
                     else:
                         self.driver.keyevent(4)
