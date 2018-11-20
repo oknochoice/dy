@@ -15,15 +15,15 @@ class Sql_dy:
     def __init__(self):
         logging.debug('%s begin', __class__)
         self.conn = sqlite3.connect('dy.db')
-        self.conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, mplatform_followers_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null)")
+        self.conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, mplatform_followers_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null, other text not null)")
         self.conn.execute("create index if not exists uid on t_users (uid)")
         self.conn.execute("create index if not exists short_id on t_users (short_id)")
         self.conn.execute("create index if not exists follower_count on t_users (follower_count)")
         self.conn.execute("create index if not exists aweme_count on t_users (aweme_count)")
-        self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_hash text not null, uid text not null, ts int not null, statistics text, unique(uid, md5, web_hash))")
-        self.conn.execute("create index if not exists web_hash on t_videos (web_hash)")
+        self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_uri text not null, uid text not null, ts int not null, statistics text, other text, unique(uid, md5, web_uri))")
+        self.conn.execute("create index if not exists web_uri on t_videos (web_uri)")
         self.conn.execute("create index if not exists md5 on t_videos (md5)")
-        self.conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_hash text not null, uid text not null, ts int not null, statistics text)")
+        self.conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_uri text not null, uid text not null, ts int not null, statistics text)")
         self.conn.execute("create table if not exists t_user_avatars (id integer primary key autoincrement, uid text not null, md5 text not null, ts int not null, unique(uid, md5))")
         self.conn.commit()
     def __del__(self):
@@ -32,18 +32,18 @@ class Sql_dy:
     
     def insertUser(self, para):
         logging.debug('%s begin', __class__)
-        sql = '''insert or replace into t_users (short_id, uid, nickname, gender, location, mplatform_followers_count, follower_count, aweme_count , total_favorited) values (?,?,?,?,?,?,?,?,?)'''
+        sql = '''insert or replace into t_users (short_id, uid, nickname, gender, location, mplatform_followers_count, follower_count, aweme_count , total_favorited, other) values (?,?,?,?,?,?,?,?,?,?)'''
         self.conn.execute(sql, para)
         self.conn.commit()
     def insertVideoFailed(self, para):
         logging.debug('%s begin', __class__)
-        sql = '''insert or ignore into t_videos_failed (url, web_hash, uid, ts, statistics) values (?,?,?,?,?)'''
+        sql = '''insert or ignore into t_videos_failed (url, web_uri, uid, ts, statistics) values (?,?,?,?,?)'''
         self.conn.execute(sql, para)
         self.conn.commit()
     def insertVideo(self, para):
         logging.debug('%s begin', __class__)
-        sql_del = '''delete from t_videos_failed where web_hash = ?'''
-        sql = '''insert or ignore into t_videos (md5, web_hash, uid, ts, statistics) values (?,?,?,?,?)'''
+        sql_del = '''delete from t_videos_failed where web_uri = ?'''
+        sql = '''insert or ignore into t_videos (md5, web_uri, uid, ts, statistics, other) values (?,?,?,?,?,?)'''
         self.conn.execute(sql_del, (para[1],))
         self.conn.execute(sql, para)
         self.conn.commit()
@@ -54,7 +54,7 @@ class Sql_dy:
         self.conn.commit()
     def isVideoExist(self, para) -> bool:
         logging.debug('%s begin', __class__)
-        sql = '''select web_hash from t_videos where web_hash = ?'''
+        sql = '''select web_uri from t_videos where web_uri = ?'''
         res = self.conn.execute(sql, para).fetchone()
         if res is None:
             return False
@@ -84,10 +84,11 @@ class DownloadThread:
         def run(self):
             logging.debug('%s begin', __class__)
     class Video(Source):
-        def __init__(self, url, webhash, uid, ts, statistics, if_ge: int):
+        def __init__(self, url, web_uri, uid, ts, statistics, other, if_ge: int):
             logging.debug('%s begin', __class__)
             self.url = url
-            self.webhash = webhash
+            self.web_uri = web_uri
+            self.other = other
             self.uid = uid
             self.ts = ts
             self.statistics = statistics
@@ -98,7 +99,7 @@ class DownloadThread:
             logging.info('if_ge %d, followercount %d', self.if_ge, follower_count)
             if follower_count < self.if_ge:
                 return
-            if Singleton_sql.get_instance().isVideoExist((self.webhash,)):
+            if Singleton_sql.get_instance().isVideoExist((self.web_uri,)):
                 logging.info('%s video is exist', __class__)
                 pass
             else:
@@ -111,12 +112,12 @@ class DownloadThread:
                     with open(path,  'wb') as f:
                         f.write(res.content)
                         f.flush()
-                    param = (md5.hexdigest(), self.webhash, self.uid, self.ts, self.statistics)
+                    param = (md5.hexdigest(), self.web_uri, self.uid, self.ts, self.statistics, self.other)
                     logging.info(param.__str__())
                     Singleton_sql.get_instance().insertVideo(param)
                 except:
                     logging.warning('download video failure:%s', self.url)
-                    Singleton_sql.get_instance().insertVideoFailed((self.url, self.webhash, self.uid, self.ts, self.statistics))
+                    Singleton_sql.get_instance().insertVideoFailed((self.url, self.web_uri, self.uid, self.ts, self.statistics))
         def desc(self):
             return 'video:' + self.url
     class Avatar(Source):
@@ -229,7 +230,7 @@ class UserInfoer:
                 # insert user
                 data = json.loads(flow.response.get_text())
                 user = data['user']
-                user_info = (user['short_id'], user['uid'], user['nickname'], user['gender'], user['location'], user['mplatform_followers_count'], user['follower_count'], user['aweme_count'], user['total_favorited'])
+                user_info = (user['short_id'], user['uid'], user['nickname'], user['gender'], user['location'], user['mplatform_followers_count'], user['follower_count'], user['aweme_count'], user['total_favorited'], json.dumps(user))
                 u_task = DownloadThread.Userinfo(user_info)
                 Singleton_tread.get_instance().addTasks([u_task], True)
                 # insert avatar
@@ -252,9 +253,9 @@ class UserInfoer:
                 videos = []
                 for video in enumerate(video_list):
                     url = video[1]['video']['play_addr']['url_list'][0]
-                    urlDict = urlparse(url)
+                    uri = video[1]['video']['play_addr']['uri']
                     statistics = video[1]['statistics']
-                    v = DownloadThread.Video(url, urlDict.path, self.uid, self.ts, json.dumps(statistics), 94000)
+                    v = DownloadThread.Video(url, uri, self.uid, self.ts, json.dumps(statistics), json.dumps(video[1]), 94000)
                     videos.append(v)
                 Singleton_tread.get_instance().addTasks(videos)
             except:
