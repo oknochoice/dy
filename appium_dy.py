@@ -91,7 +91,7 @@ class Action():
     def main(self):
         self.comments()
         self.swipe2left()
-        self.tapSearch(u'小姐姐')
+        self.tapSearch(u'长腿')
         #self.tapSearch(u'我叫Abbily')
         sleep(5)
         while True:
