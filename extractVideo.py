@@ -35,7 +35,7 @@ if __name__ == '__main__':
         other = json.loads(item[3])
         share_title = other['share_info']['share_title']
         logstr = share_title + "\n" + \
-                "坐标:" + location + ", " + nickname + ", 粉量:" + followers_count + "\n" + \
+                "坐标:" + location + ", " + nickname + ", 粉量:" + followers_count + \
                 "赞有:" + digg_count + ",分享量:" + share_count + ",评论量:" + comment_count + "\n"
         print(logstr)
         sub = "ffmpeg -i " + s_file + " -i ./shima.png -filter_complex overlay=W-w " + d_file_mp4
