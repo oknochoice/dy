@@ -2,6 +2,7 @@ import os,shutil
 import sqlite3
 import json
 import subprocess
+import sys, getopt, re
 
 def mycopyfile(srcfile, dstfile):
     if not os.path.isfile(srcfile):
@@ -14,11 +15,8 @@ def mycopyfile(srcfile, dstfile):
         shutil.copyfile(srcfile,dstfile)      #复制文件
         print("%s --> %s", srcfile, dstfile)
 
-dstdir = '/Users/yijian/Desktop/dy_video'
 srcdir = '/Volumes/data/video'
-uid = '24058267831'
-
-if __name__ == '__main__':
+def extract_video(uid:str, dstdir:str):
     conn = sqlite3.connect('dy.db')
     user = conn.execute('select location, nickname, mplatform_followers_count from t_users where uid = ?', (uid,)).fetchone()
     location = user[0]
@@ -39,10 +37,46 @@ if __name__ == '__main__':
                 "赞有:" + digg_count + ",分享量:" + share_count + ",评论量:" + comment_count + "\n"
         print(logstr)
         sub = "ffmpeg -i " + s_file + " -i ./shima.png -filter_complex overlay=W-w " + d_file_mp4
-        videoresult = subprocess.run(args=sub, shell=True)
-        with open(d_file_text, "wt") as f:
+        subprocess.check_call(args=sub, shell=True)
+        with open(d_file_text, "w") as f:
             f.write(logstr)
             f.flush()
-        
+def apath(path:str):
+    if path.startswith('.'):
+        return os.path.abspath(path)
+    elif path.startswith('~'):
+        home = os.path.expanduser('~')
+        return re.sub('~', home, path)
+    else:
+        return path
+
+def main(argv):
+    uid = ""
+    outdir = ""
+
+    try:
+        # 这里的 h 就表示该选项无参数，i:表示 i 选项后需要有参数
+        opts, args = getopt.getopt(argv, "hu:o:",["uid=", "outdir="])
+    except getopt.GetoptError:
+        print('Error: test_arg.py -i <uid> -o <outdir>')
+        print('   or: test_arg.py --uid=<uid> --outdir=<outdir>')
+        sys.exit(2)
+
+    for opt, arg in opts:
+        if opt == "-h":
+            print('Error: test_arg.py -i <uid> -o <outdir>')
+            print('   or: test_arg.py --uid=<uid> --outdir=<outdir>')
+            sys.exit()
+        elif opt in ("-u", "--uid"):
+            uid = arg
+        elif opt in ("-o", "--outdir"):
+            outdir = apath(arg)
+
+    print('uid : ', uid)
+    print('outdir: ', outdir)
+    extract_video(uid, outdir)
+
+if __name__ == '__main__':
+    main(sys.argv[1:])
 
 

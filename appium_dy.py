@@ -21,25 +21,44 @@ class Action():
         sleep(5)
     
     def tapSearch(self, keyword):
-        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a7y').click()
-        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a7y').send_keys(keyword)
-        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a81').click()
-    def downSwipe(self):
+        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/ie').click()
+        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/ie').send_keys(keyword)
+        self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a8j').click()
+    def downSwipe_m(self):
         self.driver.swipe(430, 1500, 430, 800)
+    def downSwipe_s(self):
+        self.driver.swipe(430, 1500, 430, 1400)
 
-    def findAUser(self):
+    def findAUser_user(self):
         while True:
             try:
                 try:
-                    user = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a_6')
+                    user = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/b7d')
                 except:
-                    self.downSwipe()
+                    self.downSwipe_s()
                     continue
                 if not operator.eq(user.get_attribute('text'), self.last_user):
                     self.last_user = user.get_attribute('text')
                     return user
                 else:
-                    self.downSwipe()
+                    self.downSwipe_s()
+                    continue
+            except:
+                print('find user error swipe')
+                continue
+    def findAUser_m(self):
+        while True:
+            try:
+                try:
+                    user = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a_o')
+                except:
+                    self.downSwipe_m()
+                    continue
+                if not operator.eq(user.get_attribute('text'), self.last_user):
+                    self.last_user = user.get_attribute('text')
+                    return user
+                else:
+                    self.downSwipe_m()
                     continue
             except:
                 print('find user error swipe')
@@ -48,7 +67,7 @@ class Action():
     def tapUser(self, user):
         user.click()
         try:
-            els = self.driver.find_elements_by_id('com.ss.android.ugc.aweme:id/bn')
+            els = self.driver.find_elements_by_id('com.ss.android.ugc.aweme:id/title')
             self.el = None
             for e in els:
                 if operator.contains(e.get_attribute('text'), '作品'):
@@ -56,7 +75,7 @@ class Action():
             if self.el == None:
                 self.driver.keyevent(4)
                 return
-            elm_fans = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a9q')
+            elm_fans = self.driver.find_element_by_id('com.ss.android.ugc.aweme:id/a_9')
             elm_fans_text = elm_fans.get_attribute('text')
             if elm_fans_text.find('.') == -1:
                 self.driver.keyevent(4)
@@ -74,7 +93,7 @@ class Action():
                 if len(f) == 0:
                     l = self.driver.find_elements_by_xpath(class_text)
                     if len(l) == 0:
-                        self.downSwipe()
+                        self.downSwipe_m()
                         continue
                     else:
                         self.driver.keyevent(4)
@@ -88,16 +107,27 @@ class Action():
  
     def swipe2left(self):
         self.driver.swipe(250, 1000, 1000, 1000)
-    def main(self):
+    def throught_multiple(self, keyword:str):
         self.comments()
         self.swipe2left()
-        self.tapSearch(u'长腿')
+        self.tapSearch(keyword)
         #self.tapSearch(u'我叫Abbily')
         sleep(5)
         while True:
-            element = self.findAUser()
+            element = self.findAUser_m()
+            self.tapUser(element)
+    def throught_user(self, keyword:str):
+        self.comments()
+        self.swipe2left()
+        self.tapSearch(keyword)
+        class_text = '//android.widget.TextView[@text="用户"]'
+        self.driver.find_elements_by_xpath(class_text)[0].click()
+        sleep(5)
+        while True:
+            element = self.findAUser_user()
             self.tapUser(element)
 
 if __name__ == '__main__':
     action = Action()
-    action.main()
+    #action.throught_multiple(u'长腿')
+    action.throught_user(u'美食')
