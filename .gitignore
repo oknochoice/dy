@@ -5,3 +5,4 @@ master.zip
 *.log
 .vscode
 .DS_Store
+*.json
