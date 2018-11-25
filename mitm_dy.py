@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 from mitmproxy import ctx, http, addonmanager
 from urllib.parse import urlparse
+from requests.adapters import HTTPAdapter
 #from time import sleep
 import hashlib
 import requests
@@ -10,6 +11,7 @@ import time
 import threading
 import logging
 import os
+import traceback
 
 class Sql_dy:
     def __init__(self):
@@ -100,11 +102,15 @@ class DownloadThread:
             if follower_count < self.if_ge:
                 return
             if Singleton_sql.get_instance().isVideoExist((self.web_uri,)):
-                logging.info('%s video is exist', __class__)
+                logging.info('%s video is exist, web_uri: %s', __class__, self.web_uri)
                 pass
             else:
                 try:
-                    res = requests.get(self.url, stream = True, timeout = 5)
+                    #res = requests.get(self.url, stream = True, timeout = 5)
+                    s = requests.Session()
+                    s.mount('http://', HTTPAdapter(max_retries=5))
+                    s.mount('https://', HTTPAdapter(max_retries=5))
+                    res = s.get(self.url, stream = True, timeout=5)
                     md5 = hashlib.md5()
                     md5.update(res.content)
                     filename = md5.hexdigest() + '.mp4'
@@ -252,14 +258,17 @@ class UserInfoer:
                 video_list = res_dict['aweme_list']
                 videos = []
                 for video in enumerate(video_list):
-                    url = video[1]['video']['play_addr']['url_list'][0]
-                    uri = video[1]['video']['play_addr']['uri']
-                    statistics = video[1]['statistics']
-                    v = DownloadThread.Video(url, uri, self.uid, self.ts, json.dumps(statistics), json.dumps(video[1]), 94000)
-                    videos.append(v)
+                    try:
+                        url = video[1]['video']['play_addr']['url_list'][0]
+                        uri = video[1]['video']['play_addr']['uri']
+                        statistics = video[1]['statistics']
+                        v = DownloadThread.Video(url, uri, self.uid, self.ts, json.dumps(statistics), json.dumps(video[1]), 94000)
+                        videos.append(v)
+                    except:
+                        continue
                 Singleton_tread.get_instance().addTasks(videos)
             except:
-                logging.error('video list info error: url %s', flow.request.url)
+                logging.error('video list info error: %s', traceback.format_exc())
 
 
 addons = [

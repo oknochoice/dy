@@ -28,6 +28,10 @@ def upload(source_dir:str):
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ms.json --title=\"" + title +  "\" --tags=\"中国菜, 美食, foodvideo, food, chinese, cuisine, 料理百科, 达人厨房, cooking, kitchen\" " + path
                     elif source_dir.find('ys_video') != -1:
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ys.json --title=\"" + title +  "\" --tags=\"历史, 军事, 政治, 野史, 外星人, 美国, 契约, 工程师, Phil Schneider, 特种部队, 摄影, 蜥蜴人, 克隆, 实验\" " + path
+                    elif source_dir.find('xm_video') != -1:
+                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_xm.json --title=\"" + title +  "\" --tags=\"熊猫, 萌, 萌宠, 卡哇伊, 卖萌, panda, 胖达君, 胖达, 肥仔, 团团\" " + path
+                    elif source_dir.find('jk_video') != -1:
+                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_jk.json --title=\"" + title +  "\" --tags=\"养生 健康\" " + path
                     print(sub)
                     subprocess.check_call(args=sub, shell=True)
                     print(list[i])
