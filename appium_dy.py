@@ -107,7 +107,9 @@ class Action():
  
     def swipe2left(self):
         self.driver.swipe(250, 1000, 1000, 1000)
-    def throught_multiple(self, keyword:str):
+
+
+    def search_multiple(self, keyword:str):
         self.comments()
         self.swipe2left()
         self.tapSearch(keyword)
@@ -116,7 +118,7 @@ class Action():
         while True:
             element = self.findAUser_m()
             self.tapUser(element)
-    def throught_user(self, keyword:str):
+    def search_user(self, keyword:str):
         self.comments()
         self.swipe2left()
         self.tapSearch(keyword)
@@ -126,8 +128,26 @@ class Action():
         while True:
             element = self.findAUser_user()
             self.tapUser(element)
+    def collect_catagory(self):
+        self.comments()
+        self.swipe2left()
+        sleep(5)
+        while True:
+            self.downSwipe_m()
+    def search_video(self, keyword):
+        self.comments()
+        self.swipe2left()
+        self.tapSearch(keyword)
+        class_text = '//android.widget.TextView[@text="视频"]'
+        self.driver.find_elements_by_xpath(class_text)[0].click()
+        sleep(5)
+        while True:
+            self.downSwipe_m()
+
 
 if __name__ == '__main__':
     action = Action()
     #action.throught_multiple(u'长腿')
-    action.throught_user(u'美食')
+    #action.throught_user(u'美食')
+    #action.collect_catagory()
+    action.search_video(u'红烧肉')

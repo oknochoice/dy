@@ -15,14 +15,20 @@ def mycopyfile(srcfile, dstfile):
         shutil.copyfile(srcfile,dstfile)      #复制文件
         print("%s --> %s", srcfile, dstfile)
 
-srcdir = '/Volumes/data/video'
+srcdir = '/Volumes/data/video-old'
 def extract_video(uid:str, dstdir:str):
     conn = sqlite3.connect('dy.db')
     item_all_video = conn.execute('select md5,ts,statistics,other from t_videos where uid = ? ', (uid,)).fetchall()
     for item in item_all_video:
         s_file = srcdir + "/" + item[0] + '.mp4'
         d_file_mp4 = dstdir + "/" + str(item[1]) + '-' + item[0] + '.mp4'
-        mycopyfile(s_file, d_file_mp4)
+        d_file_text = dstdir + "/" + str(item[1]) + '-' + item[0] + '.text'
+        sub = "ffmpeg -i " + s_file + " -i ./shima.png -filter_complex overlay=W-w " + d_file_mp4
+        subprocess.check_call(args=sub, shell=True)
+        logstr = item[3]
+        with open(d_file_text, "w") as f:
+            f.write(logstr)
+            f.flush()
     conn.close()
 def apath(path:str):
     if path.startswith('.'):

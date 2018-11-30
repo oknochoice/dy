@@ -12,21 +12,24 @@ import threading
 import logging
 import os
 import traceback
+import re
 
 class Sql_dy:
     def __init__(self):
         logging.debug('%s begin', __class__)
-        self.conn = sqlite3.connect('dy.db')
-        self.conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, mplatform_followers_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null, other text not null)")
+        self.conn = sqlite3.connect('dyNew.db')
+        self.conn.execute("create table if not exists t_users (id integer primary key autoincrement, short_id text not null, uid text unique not null, nickname text, gender int not null, location text, mplatform_followers_count int not null, follower_count int not null, aweme_count int not null, total_favorited int not null)")
         self.conn.execute("create index if not exists uid on t_users (uid)")
         self.conn.execute("create index if not exists short_id on t_users (short_id)")
         self.conn.execute("create index if not exists follower_count on t_users (follower_count)")
         self.conn.execute("create index if not exists aweme_count on t_users (aweme_count)")
-        self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_uri text not null, uid text not null, ts int not null, statistics text, other text, unique(uid, md5, web_uri))")
+        self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_uri text not null, uid text not null, keypath text not null, ts int not null, statistics text, isUploaded int default 0, unique(uid, md5, keypath))")
         self.conn.execute("create index if not exists web_uri on t_videos (web_uri)")
         self.conn.execute("create index if not exists md5 on t_videos (md5)")
+        self.conn.execute("create index if not exists keypath on t_videos (keypath)")
         self.conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_uri text not null, uid text not null, ts int not null, statistics text)")
         self.conn.execute("create table if not exists t_user_avatars (id integer primary key autoincrement, uid text not null, md5 text not null, ts int not null, unique(uid, md5))")
+        self.conn.execute("create table if not exists t_catagory (id integer primary key autoincrement, source_id text not null unique, title text not null, desc text not null, view_count int, user_count int)")
         self.conn.commit()
     def __del__(self):
         logging.debug('%s begin', __class__)
@@ -34,7 +37,7 @@ class Sql_dy:
     
     def insertUser(self, para):
         logging.debug('%s begin', __class__)
-        sql = '''insert or replace into t_users (short_id, uid, nickname, gender, location, mplatform_followers_count, follower_count, aweme_count , total_favorited, other) values (?,?,?,?,?,?,?,?,?,?)'''
+        sql = '''insert or replace into t_users (short_id, uid, nickname, gender, location, mplatform_followers_count, follower_count, aweme_count , total_favorited) values (?,?,?,?,?,?,?,?,?)'''
         self.conn.execute(sql, para)
         self.conn.commit()
     def insertVideoFailed(self, para):
@@ -45,8 +48,13 @@ class Sql_dy:
     def insertVideo(self, para):
         logging.debug('%s begin', __class__)
         sql_del = '''delete from t_videos_failed where web_uri = ?'''
-        sql = '''insert or ignore into t_videos (md5, web_uri, uid, ts, statistics, other) values (?,?,?,?,?,?)'''
+        sql = '''insert or ignore into t_videos (md5, web_uri, uid, keypath, ts, statistics) values (?,?,?,?,?,?)'''
         self.conn.execute(sql_del, (para[1],))
+        self.conn.execute(sql, para)
+        self.conn.commit()
+    def insertCatagory(self, para):
+        logging.debug('%s begin', __class__)
+        sql = '''insert or replace into t_catagory (source_id, title, desc, view_count, user_count) values (?,?,?,?,?)'''
         self.conn.execute(sql, para)
         self.conn.commit()
     def insertAvatars(self, para):
@@ -86,31 +94,50 @@ class DownloadThread:
         def run(self):
             logging.debug('%s begin', __class__)
     class Video(Source):
-        def __init__(self, url, web_uri, uid, ts, statistics, other, if_ge: int):
+        def __init__(self, url, web_uri, uid, ts, statistics, keypath, if_ge: int):
             logging.debug('%s begin', __class__)
             self.url = url
             self.web_uri = web_uri
-            self.other = other
+            self.keypath = keypath
             self.uid = uid
             self.ts = ts
             self.statistics = statistics
             self.if_ge = if_ge
         def run(self):
             logging.debug('%s begin', __class__)
-            follower_count = Singleton_sql.get_instance().queryUser_follower(self.uid)
-            logging.info('if_ge %d, followercount %d', self.if_ge, follower_count)
-            if follower_count < self.if_ge:
-                return
+            #follower_count = Singleton_sql.get_instance().queryUser_follower(self.uid)
+            #logging.info('if_ge %d, followercount %d', self.if_ge, follower_count)
+            #if follower_count < self.if_ge:
+            #    return
             if Singleton_sql.get_instance().isVideoExist((self.web_uri,)):
                 logging.info('%s video is exist, web_uri: %s', __class__, self.web_uri)
                 pass
             else:
                 try:
                     #res = requests.get(self.url, stream = True, timeout = 5)
+                    proxies = {
+                                "http": "http://127.0.0.1:8888",
+                                "https": "http://127.0.0.1:8888",
+                                }
                     s = requests.Session()
                     s.mount('http://', HTTPAdapter(max_retries=5))
                     s.mount('https://', HTTPAdapter(max_retries=5))
-                    res = s.get(self.url, stream = True, timeout=5)
+                    headers = {'User-Agent': 'com.ss.android.ugc.aweme/340 (Linux; U; Android 8.1.0; zh_CN; ZTE V0900; Build/OPM1.171019.026; Cronet/58.0.2991.0)'}
+                    #res_first = s.get(self.url, stream = True, timeout=5)
+                    res = s.get(self.url, stream = True, timeout=5, headers = headers)
+                    logging.info("requests headers: %s", res.headers)
+
+                    #bs = BeautifulSoup(res_first.text, "lxml")
+                    #bsl = bs.find('a')
+                    #res  = None
+                    #if bsl == None:
+                    #    res = res_first
+                    #else:
+                    #    s = requests.Session()
+                    #    s.mount('http://', HTTPAdapter(max_retries=5))
+                    #    s.mount('https://', HTTPAdapter(max_retries=5))
+                    #    self.url = bsl.get('href')
+                    #    res = s.get(self.url, stream = True, timeout=5)
                     md5 = hashlib.md5()
                     md5.update(res.content)
                     filename = md5.hexdigest() + '.mp4'
@@ -118,14 +145,14 @@ class DownloadThread:
                     with open(path,  'wb') as f:
                         f.write(res.content)
                         f.flush()
-                    param = (md5.hexdigest(), self.web_uri, self.uid, self.ts, self.statistics, self.other)
+                    param = (md5.hexdigest(), self.web_uri, self.uid, self.keypath, self.ts, self.statistics)
                     logging.info(param.__str__())
                     Singleton_sql.get_instance().insertVideo(param)
                 except:
                     logging.warning('download video failure:%s', self.url)
                     Singleton_sql.get_instance().insertVideoFailed((self.url, self.web_uri, self.uid, self.ts, self.statistics))
         def desc(self):
-            return 'video:' + self.url
+            return 'video:' + self.url + self.keypath
     class Avatar(Source):
         def __init__(self, url, uid):
             logging.debug('%s begin', __class__)
@@ -157,6 +184,21 @@ class DownloadThread:
             Singleton_sql.get_instance().insertUser(self.user_info)
         def desc(self):
             return 'user:' + self.user_info.__str__()
+    class Category(Source):
+        def __init__(self, source_id:str, title: str, desc: str, view_count: int, user_count: int):
+            logging.debug('%s begin', __class__)
+            self.source_id = source_id
+            self.title = title
+            self.desc_l = desc
+            self.view_count = view_count
+            self.user_count = user_count
+        def run(self):
+            logging.debug('%s begin', __class__)
+            Singleton_sql.get_instance().insertCatagory((self.source_id, self.title, self.desc_l, self.view_count, self.user_count))
+        def desc(self):
+            return self.source_id + ":" + self.title + ":" + self.desc_l
+
+
     def __init__(self):
         logging.debug('%s begin', __class__)
         self.con = threading.Condition(threading.Lock())
@@ -221,7 +263,7 @@ class UserInfoer:
         ctx.log.alert('load begin')
         logging.getLogger('').handlers = []
         log_format = "[%(asctime)s:%(levelname)s:%(thread)d:%(filename)s:%(lineno)d:%(funcName)s]%(message)s"
-        logging.basicConfig(filename='my.log', level=logging.INFO, format=log_format)
+        logging.basicConfig(filename='my.log', level=logging.DEBUG, format=log_format)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("wsgi").setLevel(logging.WARNING)
@@ -236,7 +278,7 @@ class UserInfoer:
                 # insert user
                 data = json.loads(flow.response.get_text())
                 user = data['user']
-                user_info = (user['short_id'], user['uid'], user['nickname'], user['gender'], user['location'], user['mplatform_followers_count'], user['follower_count'], user['aweme_count'], user['total_favorited'], json.dumps(user))
+                user_info = (user['short_id'], user['uid'], user['nickname'], user['gender'], user['location'], user['mplatform_followers_count'], user['follower_count'], user['aweme_count'], user['total_favorited'])
                 u_task = DownloadThread.Userinfo(user_info)
                 Singleton_tread.get_instance().addTasks([u_task], True)
                 # insert avatar
@@ -244,32 +286,78 @@ class UserInfoer:
                 a_task = DownloadThread.Avatar(avatar_url, user['uid'])
                 Singleton_tread.get_instance().addTasks([a_task])
             except:
-                logging.error('user info error: url %s', flow.request.url)
-        if flow.request.url.find('/aweme/v1/aweme/post/') != -1:
+                logging.error('user info error: %s', traceback.format_exc())
+        if (flow.request.url.find('/aweme/v1/aweme/post/') != -1 or
+            flow.request.url.find('/aweme/v1/search/item/') != -1):
             try:
                 logging.info('user produce url %s',flow.request.url)
                 res_dict = json.loads(flow.response.get_text())
-                fields = flow.request.query.fields
-                for tt in enumerate(fields):
-                    if tt[1][0] == 'user_id':
-                        self.uid = tt[1][1]
-                    elif tt[1][0] == 'ts':
-                        self.ts = tt[1][1]
+                #fields = flow.request.query.fields
+                #for tt in enumerate(fields):
+                #    if tt[1][0] == 'user_id':
+                #        self.uid = tt[1][1]
+                #    elif tt[1][0] == 'ts':
+                #        self.ts = tt[1][1]
                 video_list = res_dict['aweme_list']
                 videos = []
                 for video in enumerate(video_list):
                     try:
                         url = video[1]['video']['play_addr']['url_list'][0]
                         uri = video[1]['video']['play_addr']['uri']
+                        uid = video[1]['author_user_id']
+                        ts = video[1]['create_time']
                         statistics = video[1]['statistics']
-                        v = DownloadThread.Video(url, uri, self.uid, self.ts, json.dumps(statistics), json.dumps(video[1]), 94000)
+                        title = video[1]['share_info']['share_title']
+                        statistics['share_title'] = title
+                        keypath = 'userlist'
+                        if flow.request.url.find('/search/') != -1:
+                            keypath = 'search'
+                            fields = flow.request.query.fields
+                            for tt in enumerate(fields):
+                                if tt[1][0] == 'keyword':
+                                    keypath += '.' + tt[1][1]
+                        #v = DownloadThread.Video(url, uri, self.uid, self.ts, json.dumps(statistics), json.dumps(video[1]), 94000)
+                        v = DownloadThread.Video(url, uri, uid, ts, json.dumps(statistics), keypath, 94000)
                         videos.append(v)
                     except:
+                        logging.error('video info error: %s', traceback.format_exc())
                         continue
                 Singleton_tread.get_instance().addTasks(videos)
             except:
                 logging.error('video list info error: %s', traceback.format_exc())
 
+        if flow.request.url.find('/aweme/v1/category/list/') != -1:
+            try:
+                logging.info('user produce url %s',flow.request.url)
+                res_dict = json.loads(flow.response.get_text())
+                category_list = res_dict['category_list']
+                categorys = []
+                for cate in enumerate(category_list):
+                    try:
+                        title = ''
+                        desc = cate[1]['desc']
+                        view_count = 0
+                        user_count = 0
+                        source_id = ''
+                        if 'challenge_info' in cate[1]:
+                            title = cate[1]['challenge_info']['cha_name']
+                            view_count = cate[1]['challenge_info']['view_count']
+                            user_count = cate[1]['challenge_info']['user_count']
+                            source_id = cate[1]['challenge_info']['cid']
+                        elif 'music_info' in cate[1]:
+                            title = cate[1]['music_info']['title']
+                            user_count = cate[1]['music_info']['user_count']
+                            source_id = cate[1]['music_info']['id_str']
+                        else:
+                            logging.error('no key in catagory list')
+                        c = DownloadThread.Category(source_id, title, desc, view_count, user_count)
+                        categorys.append(c)
+                    except:
+                        logging.error('category info error: %s', traceback.format_exc())
+                        continue
+                Singleton_tread.get_instance().addTasks(categorys)
+            except:
+                logging.error('video list info error: %s', traceback.format_exc())
 
 addons = [
     UserInfoer()

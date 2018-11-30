@@ -3,17 +3,20 @@ import os
 import re
 import time
 import sys, getopt
+import shutil
 
-xjj_dir = '/Users/yijian/Desktop/dy_video'
-ms_dir = '/Users/yijian/Desktop/ms_video'
+uploaded_dir = '/Users/yijian/Desktop/uploaded'
 
-def upload(source_dir:str):
+
+def upload(source_dir:str, postfix:str):
     list = os.listdir(source_dir)
     for i in range(0, len(list)):
         path = os.path.join(source_dir, list[i])
+        d_path = os.path.join(uploaded_dir, list[i])
         if os.path.isfile(path):
-            if list[i].endswith('.mp4'):
-                text_path = re.sub('.mp4','.text', path)
+            if list[i].endswith(postfix):
+                text_path = re.sub(postfix,'.text', path)
+                d_text_path = re.sub(postfix, '.text', d_path)
                 with open(text_path) as f:
                     title = f.readline()
                     title = re.sub('\n', '', title)
@@ -35,7 +38,9 @@ def upload(source_dir:str):
                     print(sub)
                     subprocess.check_call(args=sub, shell=True)
                     print(list[i])
-                    os.remove(path)
+                    #os.remove(path)
+                    shutil.move(text_path,d_text_path)
+                    shutil.move(path,d_path)
 
 def apath(path:str):
     if path.startswith('.'):
@@ -48,10 +53,11 @@ def apath(path:str):
 
 def main(argv):
     sdir = ""
+    postfix = ".mp4"
 
     try:
         # 这里的 h 就表示该选项无参数，i:表示 i 选项后需要有参数
-        opts, args = getopt.getopt(argv, "hi:",["indir="])
+        opts, args = getopt.getopt(argv, "hi:p:",["indir=","postfix="])
     except getopt.GetoptError:
         print('Error: upload.py param')
         sys.exit(2)
@@ -62,9 +68,11 @@ def main(argv):
             sys.exit()
         elif opt in ("-i", "--indir"):
             sdir = apath(arg)
+        elif opt in ("-p", "--postfix"):
+            postfix = arg
 
     print('indir: ', sdir)
-    upload(sdir)
+    upload(sdir, postfix)
 
 
 if __name__ == '__main__':
