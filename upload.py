@@ -18,8 +18,13 @@ def sort_yeshi(name:str):
 
 def upload(source_dir:str, postfix:str):
     list_sorted = list()
-    if source_dir.find('ys_video') == -1:
+    sub_client = ""
+    if source_dir.find('ys_video') != -1:
         list_sorted = sorted(os.listdir(source_dir), key = sort_yeshi)
+        sub_client = "cp /Users/yijian/.youtube-upload-credentials.json.ys.back /Users/yijian/.youtube-upload-credentials.json"
+    else:
+        sub_client = "rm /Users/yijian/.youtube-upload-credentials.json"
+    subprocess.check_call(args = sub_client, shell=True)
     for i in range(0, len(list_sorted)):
         path = os.path.join(source_dir, list_sorted[i])
         d_path = os.path.join(uploaded_dir, list_sorted[i])
@@ -42,7 +47,7 @@ def upload(source_dir:str, postfix:str):
                         #sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ms.json --title=\"" + title + "\" --description=\"" + desc + "\" --tags=\"中国菜, 美食, foodvideo, food, chinese, cuisine, 料理百科, 达人厨房, cooking, kitchen\" " + path
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ms.json --title=\"" + title +  "\" --tags=\"中国菜, 美食, foodvideo, food, chinese, cuisine, 料理百科, 达人厨房, cooking, kitchen\" " + path
                     elif source_dir.find('ys_video') != -1:
-                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ys.json --title=\"" + title +  "\" --tags=\"历史, 军事, 政治, 野史, 春秋, 五霸\" " + path
+                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ys.json --playlist=\"一说春秋\" --title=\"" + title +  "\" --tags=\"历史, 军事, 政治, 野史, 春秋, 五霸\" " + path
                     elif source_dir.find('xm_video') != -1:
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_xm.json --title=\"" + title +  "\" --tags=\"熊猫, 萌, 萌宠, 卡哇伊, 卖萌, panda, 胖达君, 胖达, 肥仔, 团团\" " + path
                     elif source_dir.find('jk_video') != -1:
