@@ -26,6 +26,7 @@ class Sql_dy:
         self.conn.execute("create table if not exists t_videos (id integer primary key autoincrement, md5 text not null, web_uri text not null, uid text not null, keypath text not null, ts int not null, statistics text, isUploaded int default 0, unique(uid, md5, keypath))")
         self.conn.execute("create index if not exists web_uri on t_videos (web_uri)")
         self.conn.execute("create index if not exists md5 on t_videos (md5)")
+        self.conn.execute("create table if not exists t_videos_xmly (id integer primary key autoincrement, md5 text not null, web_uri text not null, uid text not null, statistics text, isUploaded int default 0, unique(uid, md5))")
         self.conn.execute("create index if not exists keypath on t_videos (keypath)")
         self.conn.execute("create table if not exists t_videos_failed (id integer primary key autoincrement, url text unique not null, web_uri text not null, uid text not null, ts int not null, statistics text)")
         self.conn.execute("create table if not exists t_user_avatars (id integer primary key autoincrement, uid text not null, md5 text not null, ts int not null, unique(uid, md5))")
@@ -52,6 +53,11 @@ class Sql_dy:
         self.conn.execute(sql_del, (para[1],))
         self.conn.execute(sql, para)
         self.conn.commit()
+    def insertVideo_xmly(self, para):
+        logging.debug('%s begin', __class__)
+        sql = '''insert or ignore into t_videos_xmly (md5, web_uri, uid, statistics) values (?,?,?,?)'''
+        self.conn.execute(sql, para)
+        self.conn.commit()
     def insertCatagory(self, para):
         logging.debug('%s begin', __class__)
         sql = '''insert or replace into t_catagory (source_id, title, desc, view_count, user_count) values (?,?,?,?,?)'''
@@ -65,6 +71,14 @@ class Sql_dy:
     def isVideoExist(self, para) -> bool:
         logging.debug('%s begin', __class__)
         sql = '''select web_uri from t_videos where web_uri = ?'''
+        res = self.conn.execute(sql, para).fetchone()
+        if res is None:
+            return False
+        else:
+            return True
+    def isVideoExist_xmly(self, para) -> bool:
+        logging.debug('%s begin', __class__)
+        sql = '''select web_uri from t_videos_xmly where web_uri = ?'''
         res = self.conn.execute(sql, para).fetchone()
         if res is None:
             return False
@@ -93,6 +107,38 @@ class DownloadThread:
     class Source:
         def run(self):
             logging.debug('%s begin', __class__)
+        def desc(self):
+            return 'no desc'
+    class Sound_xmly(Source):
+        def __init__(self, url, web_uri, uid, statistics):
+            logging.debug('%s begin', __class__)
+            self.url = url
+            self.web_uri = web_uri
+            self.uid = uid
+            self.statistics = statistics
+        def run(self):
+            if Singleton_sql.get_instance().isVideoExist_xmly((self.web_uri,)):
+                logging.info('%s video is exist, web_uri: %s', __class__, self.web_uri)
+                pass
+            else:
+                try:
+                    s = requests.Session()
+                    s.mount('http://', HTTPAdapter(max_retries=5))
+                    s.mount('https://', HTTPAdapter(max_retries=5))
+                    res = s.get(self.url, stream = True, timeout=5)
+                    md5 = hashlib.md5()
+                    md5.update(res.content)
+                    filename = md5.hexdigest() + '.mp3'
+                    path = '/Volumes/data/xmly_video/' + filename
+                    with open(path,  'wb') as f:
+                        f.write(res.content)
+                        f.flush()
+                    param = (md5.hexdigest(), self.web_uri, self.uid, self.statistics)
+                    logging.info(param.__str__())
+                    Singleton_sql.get_instance().insertVideo_xmly(param)
+                except:
+                    #logging.warning('download video failure:%s, statistics: %s', self.url, self.statistics)
+                    logging.error('video list info error: %s', traceback.format_exc())
     class Video(Source):
         def __init__(self, url, web_uri, uid, ts, statistics, keypath, if_ge: int):
             logging.debug('%s begin', __class__)
@@ -356,6 +402,28 @@ class UserInfoer:
                         logging.error('category info error: %s', traceback.format_exc())
                         continue
                 Singleton_tread.get_instance().addTasks(categorys)
+            except:
+                logging.error('video list info error: %s', traceback.format_exc())
+
+        if flow.request.url.find('/mobile/v1/album/track/') != -1:
+            try:
+                logging.info('xmly produce url %s',flow.request.url)
+                res_dict = json.loads(flow.response.get_text())
+                data_list = res_dict['data']['list']
+                datas = []
+                for item_t in enumerate(data_list):
+                    item = item_t[1]
+                    title = item['title']
+                    uid = str(item['uid'])
+                    url = item['playUrl64']
+                    order_no = item['orderNo']
+                    web_uri = str(item['trackId']) + ":" + uid
+                    statistics = dict()
+                    statistics['title'] = title
+                    statistics['order_no'] = order_no
+                    c = DownloadThread.Sound_xmly(url, web_uri, uid, json.dumps(statistics))
+                    datas.append(c)
+                Singleton_tread.get_instance().addTasks(datas)
             except:
                 logging.error('video list info error: %s', traceback.format_exc())
 

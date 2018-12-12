@@ -7,14 +7,26 @@ import shutil
 
 uploaded_dir = '/Users/yijian/Desktop/uploaded'
 
+def sort_yeshi(name:str):
+    print(name.split('-'))
+    key = name.split('-')[0]
+    if key.isdecimal():
+        return int(key)
+    else:
+        return 0
+
 
 def upload(source_dir:str, postfix:str):
-    list = os.listdir(source_dir)
-    for i in range(0, len(list)):
-        path = os.path.join(source_dir, list[i])
-        d_path = os.path.join(uploaded_dir, list[i])
+    list_sorted = list()
+    if source_dir.find('ys_video') == -1:
+        list_sorted = sorted(os.listdir(source_dir), key = sort_yeshi)
+    for i in range(0, len(list_sorted)):
+        path = os.path.join(source_dir, list_sorted[i])
+        d_path = os.path.join(uploaded_dir, list_sorted[i])
+        print(list_sorted[i])
+        #continue
         if os.path.isfile(path):
-            if list[i].endswith(postfix):
+            if list_sorted[i].endswith(postfix):
                 text_path = re.sub(postfix,'.text', path)
                 d_text_path = re.sub(postfix, '.text', d_path)
                 with open(text_path) as f:
@@ -30,15 +42,17 @@ def upload(source_dir:str, postfix:str):
                         #sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ms.json --title=\"" + title + "\" --description=\"" + desc + "\" --tags=\"中国菜, 美食, foodvideo, food, chinese, cuisine, 料理百科, 达人厨房, cooking, kitchen\" " + path
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ms.json --title=\"" + title +  "\" --tags=\"中国菜, 美食, foodvideo, food, chinese, cuisine, 料理百科, 达人厨房, cooking, kitchen\" " + path
                     elif source_dir.find('ys_video') != -1:
-                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ys.json --title=\"" + title +  "\" --tags=\"历史, 军事, 政治, 野史, 外星人, 美国, 契约, 工程师, Phil Schneider, 特种部队, 摄影, 蜥蜴人, 克隆, 实验\" " + path
+                        sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_ys.json --title=\"" + title +  "\" --tags=\"历史, 军事, 政治, 野史, 春秋, 五霸\" " + path
                     elif source_dir.find('xm_video') != -1:
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_xm.json --title=\"" + title +  "\" --tags=\"熊猫, 萌, 萌宠, 卡哇伊, 卖萌, panda, 胖达君, 胖达, 肥仔, 团团\" " + path
                     elif source_dir.find('jk_video') != -1:
                         sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=./client_jk.json --title=\"" + title +  "\" --tags=\"养生 健康\" " + path
+                    else:
+                        print("source direction is illegal.")
+                        return
                     print(sub)
                     subprocess.check_call(args=sub, shell=True)
-                    print(list[i])
-                    #os.remove(path)
+                    # move back
                     shutil.move(text_path,d_text_path)
                     shutil.move(path,d_path)
 
