@@ -3,6 +3,7 @@ import os
 import re
 import time
 
+
 if __name__ == '__main__':
     todir = '/Users/yijian/Desktop/dy_video'
     rootdir = '/Users/yijian/Desktop/dy_video_horizontal'
