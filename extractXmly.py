@@ -20,6 +20,15 @@ def sortVideo(t: tuple):
     return statistics['order_no']
 
 srcdir = '/Volumes/data/xmly_video'
+
+water = {"39496787": "water-syxcg.jpeg",
+         "6042491": "water-lls.jpeg",
+         "3121164": "water-msqt.jpeg",
+         "43955622": "water-hyjq.jpeg",
+         "36095869": "water-dls.jpeg",
+         "44360025": "water-zzks.jpeg",
+         "33949053": "water-yscq.jpeg"} 
+
 def extract_video(uid:str, dstdir:str):
     conn = sqlite3.connect('dyNew.db')
     item_all_video = conn.execute('select md5,statistics from t_videos_xmly where uid = ? and isUploaded == 0', (uid,)).fetchall()
@@ -31,7 +40,12 @@ def extract_video(uid:str, dstdir:str):
         d_file_text = dstdir + "/" + str(statistics['order_no']) + '-' + item[0] + '.text'
         logstr = statistics['title'] + '\n'
         print(logstr)
-        sub = "ffmpeg -y -threads 4 -loop 1 -i ./water.jpeg -i " + s_file + " -vf drawtext=\"fontfile=./fz.ttf:text=石马Beautiful:fontcolor=white:fontsize=40\",drawtext=\"fontfile=./fz.ttf:text=" + statistics['title'] + ":fontcolor=green:fontsize=200:x=(w-tw)/2:y=(h-th)/2\" -shortest -s 1280x720 -r 30 " + d_file_mp4
+        water_used = water[uid]
+        video_title = re.sub(r'[：•·:|\-\?+,，。？！]', '\n',statistics['title'])
+        video_title = re.sub(r'["\';]', '',video_title)
+        print(video_title)
+        sub = "ffmpeg -y -threads 4 -loop 1 -i ./" + water_used + " -i " + s_file + " -vf drawtext=\"fontfile=./fz.ttf:text=石马Beautiful:fontcolor=white:fontsize=40\",drawtext=\"fontfile=./fz.ttf:text=" + video_title + ":fontcolor=green:fontsize=100:x=0:y=h-th\" -shortest -s 1280x720 -r 30 " + d_file_mp4
+        print(sub)
         subprocess.check_call(args=sub, shell=True)
         with open(d_file_text, "w") as f:
             f.write(logstr)
@@ -51,13 +65,14 @@ def apath(path:str):
 def main(argv):
     uid = ""
     outdir = ""
+    global srcdir
 
     try:
         # 这里的 h 就表示该选项无参数，i:表示 i 选项后需要有参数
         opts, args = getopt.getopt(argv, "hu:o:",["uid=", "outdir="])
     except getopt.GetoptError:
         print('Error: test_arg.py -i <uid> -o <outdir>')
-        print('   or: test_arg.py --uid=<uid> --outdir=<outdir>')
+        print('   or: test_arg.py --uid=<:uid> --outdir=<outdir>')
         sys.exit(2)
 
     for opt, arg in opts:
@@ -67,10 +82,12 @@ def main(argv):
             sys.exit()
         elif opt in ("-u", "--uid"):
             uid = arg
+            srcdir = srcdir + '/' + uid
         elif opt in ("-o", "--outdir"):
             outdir = apath(arg)
 
     print('uid : ', uid)
+    print('sourcedir: ', srcdir)
     print('outdir: ', outdir)
     extract_video(uid, outdir)
 

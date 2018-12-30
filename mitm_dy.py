@@ -129,7 +129,11 @@ class DownloadThread:
                     md5 = hashlib.md5()
                     md5.update(res.content)
                     filename = md5.hexdigest() + '.mp3'
-                    path = '/Volumes/data/xmly_video/' + filename
+                    dir_path = '/Volumes/data/xmly_video/' + self.uid
+                    isExists = os.path.exists(dir_path)
+                    if not isExists:
+                        os.makedirs(dir_path)
+                    path = dir_path + '/' + filename
                     with open(path,  'wb') as f:
                         f.write(res.content)
                         f.flush()
