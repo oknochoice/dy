@@ -21,26 +21,24 @@ def sortVideo(t: tuple):
 
 srcdir = '/Volumes/data/xmly_video'
 
-water = {"39496787": "water-syxcg.jpeg",
-         "6042491": "water-lls.jpeg",
-         "3121164": "water-msqt.jpeg",
-         "43955622": "water-hyjq.jpeg",
-         "36095869": "water-dls.jpeg",
-         "44360025": "water-zzks.jpeg",
-         "33949053": "water-yscq.jpeg"} 
-
 def extract_video(uid:str, dstdir:str):
+    water_used = ""
+    info = dict()
+    with open("./banyun.json", "r") as f:
+        info = json.load(f)
+        water_used = info[uid]["water"]
+    l_srcdir = srcdir + '/' + uid
     conn = sqlite3.connect('dyNew.db')
     item_all_video = conn.execute('select md5,statistics from t_videos_xmly where uid = ? and isUploaded == 0', (uid,)).fetchall()
     item_all_video_sorted = sorted(item_all_video, key = sortVideo)
     for item in item_all_video_sorted:
-        s_file = srcdir + "/" + item[0] + '.mp3'
+        s_file = l_srcdir + "/" + item[0] + '.mp3'
         statistics = json.loads(item[1])
         d_file_mp4 = dstdir + "/" + str(statistics['order_no']) + '-' + item[0] + '.mp4'
         d_file_text = dstdir + "/" + str(statistics['order_no']) + '-' + item[0] + '.text'
-        logstr = statistics['title'] + '\n'
+        logstr = statistics['title'] + '\n' + uid + '\n'
         print(logstr)
-        water_used = water[uid]
+        print(info[uid]["playlist"])
         video_title = re.sub(r'[：•·:|\-\?+,，。？！]', '\n',statistics['title'])
         video_title = re.sub(r'["\';]', '',video_title)
         print(video_title)
@@ -82,14 +80,20 @@ def main(argv):
             sys.exit()
         elif opt in ("-u", "--uid"):
             uid = arg
-            srcdir = srcdir + '/' + uid
         elif opt in ("-o", "--outdir"):
             outdir = apath(arg)
 
     print('uid : ', uid)
     print('sourcedir: ', srcdir)
     print('outdir: ', outdir)
-    extract_video(uid, outdir)
+    if int(uid) == 0:
+        with open("./banyun.json", "r") as f:
+            info = json.load(f)
+            for key in info:
+                print(key)
+                extract_video(key, outdir)
+    else:
+        extract_video(uid, outdir)
 
 if __name__ == '__main__':
     main(sys.argv[1:])
