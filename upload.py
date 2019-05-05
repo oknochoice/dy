@@ -84,14 +84,8 @@ def upload(source_dir:str, postfix:str):
                         return
                     print(sub)
                     subprocess.check_call(args=sub, shell=True)
-                    # move back
-                    l_u_d = os.path.join(uploaded_dir, info[uid]["playlist"])
-                    if not os.path.exists(l_u_d):
-                        os.mkdir(l_u_d)
-                    d_path = os.path.join(l_u_d, list_sorted[i])
-                    d_text_path = re.sub(postfix, '.text', d_path)
-                    shutil.move(text_path,d_text_path)
-                    shutil.move(path,d_path)
+                    os.remove(text_path)
+                    os.remove(path)
 
 def apath(path:str):
     if path.startswith('.'):

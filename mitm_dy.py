@@ -13,6 +13,9 @@ import logging
 import os
 import traceback
 import re
+import time
+import pymongo
+import datetime
 
 class Sql_dy:
     def __init__(self):
@@ -308,16 +311,47 @@ class TrackRecorder:
                 f.write(res.content)
                 f.flush()
 
+class Mongo:
+    def __init__(self):
+        self.client = pymongo.MongoClient(host=['mongodb://localhost:27017/'])
+        self.db = self.client['toutiao-db']
+        self.user_video_infos = self.db['user.video.infos']
+        self.user_video_infos.create_index([('video_id', pymongo.ASCENDING)], unique = True)
+        self.video_path = '/Volumes/data/toutiao/'
+        isExists = os.path.exists(self.video_path)
+        if not isExists:
+            os.makedirs(self.video_path)
+        self.up_path = '/Users/yijian/Desktop/tvideo'
+        with open('toutiao_bunyun.json', 'r') as f:
+            self.user_infos = json.load(f)
+    def video_info_upsert_one(self, info:dict):
+        return self.user_video_infos.update_one({'video_id': info["video_id"]}, { '$set': info}, True)
+class Singleton_Mongo:
+    instance = None
+    @staticmethod
+    def get_instance():
+        if Singleton_Mongo.instance is None:
+            Singleton_Mongo.instance = Mongo()
+        return Singleton_Mongo.instance
+
 class UserInfoer:
+    
+        
     def load(self, entry: addonmanager.Loader):
         ctx.log.alert('load begin')
         logging.getLogger('').handlers = []
         log_format = "[%(asctime)s:%(levelname)s:%(thread)d:%(filename)s:%(lineno)d:%(funcName)s]%(message)s"
-        logging.basicConfig(filename='my.log', level=logging.DEBUG, format=log_format)
+        logging.basicConfig(filename='1m.log', level=logging.DEBUG, format=log_format)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("wsgi").setLevel(logging.WARNING)
         logging.debug('%s log init test', __class__)
+        
+    #def requestheaders(self, flow: http.HTTPFlow):
+    #    flow.request.stream = True
+    #def responseheaders(self, flow: http.HTTPFlow):
+    #    flow.response.stream = True
+                
     def response(self, flow: http.HTTPFlow) -> None:
         logging.info('in %s',flow.request.url)
         #if (flow.request.url.startswith('https://aweme-eagle.snssdk.com/aweme/v1/user') or
@@ -430,6 +464,48 @@ class UserInfoer:
                 Singleton_tread.get_instance().addTasks(datas)
             except:
                 logging.error('video list info error: %s', traceback.format_exc())
+        
+        # toutiao
+        if flow.request.url.find('api/feed/profile/v1/?category=profile_video&visited_uid=') != -1:
+            try:
+                logging.info('toutiao url %s', flow.request.url)
+                filled_line = re.sub(r'\\\\\\"', '"', flow.response.get_text())
+                filled_line = re.sub(r'\\"', '"', filled_line)
+                filled_line = re.sub(r'"{', '{', filled_line)
+                filled_line = re.sub(r'}"', '}', filled_line)
+                data = json.loads(filled_line)
+                for item_t in enumerate(data["data"]):
+                    content = item_t[1]["content"]
+                    video_info = dict()
+                    video_info["item_id"] = content["item_id"]
+                    t = video_info["publish_time"] = content["publish_time"]
+                    d = datetime.datetime.fromtimestamp(t)
+                    video_info["year"] = d.strftime("%Y")
+                    video_info["month"] = d.strftime("%m")
+                    video_info["day"] = d.strftime("%d")
+                    video_info["hour"] = d.strftime("%H:%M:%S")
+                    video_info["req_id"] = content["req_id"]
+                    video_info["share_url"] = content["share_url"]
+                    video_info["source"] = content["source"]
+                    video_info["video_id"] = content["video_id"]
+                    video_info["video_duration"] = content["video_duration"]
+                    video_info["title"] = content["title"]
+                    video_info["video_watch_count"] = content["video_detail_info"]["video_watch_count"]
+                    Singleton_Mongo.get_instance().video_info_upsert_one(video_info)
+            except:
+                logging.error('tt video list info error: %s', traceback.format_exc())
+
+    #def request(self, flow: http.HTTPFlow):
+    #    if flow.request.url.find('/video/m/') != -1:
+    #        logging.info('in url %s',flow.request.url)
+    #        url = "http://" + flow.request.host_header + flow.request.path
+    #        logging.info('in url %s',url)
+    #        try:
+    #            with open("t-video-url.txt", 'a+') as f:
+    #                f.write(url+'\n')
+    #        except:
+    #            logging.error('video list info error: %s', traceback.format_exc())
+
 
 addons = [
     UserInfoer()
