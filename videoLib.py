@@ -75,16 +75,54 @@ class Reverse:
             #print("{}: is not smali file.".format(filename))
             pass
 
-
-
-class Tool:
-            
+class Mongo:
     def __init__(self):
         self.client = pymongo.MongoClient('mongodb://localhost:27017/')
         self.db = self.client['toutiao-db']
         self.user_video_infos = self.db['user.video.infos']
         self.user_video_urls = self.db['user.video.urls']
         self.user_video_stop = self.db['user.video.stop']
+    def findNeedDownloadVideos(self):
+        return self.user_video_infos.aggregate([{"$match": {"upload_status": {"$exists": False}}},{"$lookup": { "from": "user.video.urls", "let": { "info_video_id": "$video_id"}, "pipeline": [ { "$match": {"$expr": { "$eq": ["$$info_video_id", "$video_id"]} } } ], "as": "video_urls" }}, {"$match": {"$expr": {"$ne": [{"$size":"$video_urls"}, 0] } } }, {"$replaceRoot": {"newRoot": {"video_id": "$video_id", "urlObj": {"$arrayElemAt": [ "$video_urls",0]} }}}, {"$replaceRoot": {"newRoot":{"video_id": "$video_id", "url": {"$arrayElemAt": [ "$urlObj.urls",0]}}}}, {"$limit": 9}])
+    def downloadSuccess(self, video_id):
+        self.user_video_infos.update_one({"video_id": video_id},{"$set": {"upload_status": "download success"}})
+    def findNeedExtractVideo(self, name):
+        return self.user_video_infos.find_one({"upload_status": "download success", "source": name})
+    def extractSuccess(self, video_id):
+        self.user_video_infos.update_one({'video_id': video_id}, {'$set': {'upload_status': "extract success"}})
+    def findNeedUploadVideos(self, name):
+        return self.user_video_infos.find({"source": name, "upload_status": "extract success"}).sort("publish_time",pymongo.ASCENDING)
+    def uploadSuccess(self, video_id):
+        self.user_video_infos.update_one({"video_id": video_id},{"$set": {"upload_status": "upload success"}})
+    def listen(self):
+        while True:
+            try:
+                old_video_id = ""
+                with self.user_video_urls.watch([{"$match": { "$or": [{'operationType': 'insert'}, {'operationType': 'replace'}]}}]) as steam:
+                    for change in steam:
+                        video_id = change['fullDocument']['video_id']
+                        if video_id == old_video_id:
+                            continue
+                        else:
+                            old_video_id = video_id
+                            doc = self.user_video_infos.find_one({"video_id": video_id})
+                            print(doc['source'])
+                            if doc != None:
+                                self.user_video_stop.update_one({"source": doc['source']},{"$inc": {"complete_count": 1}},True)
+            except:
+                print("listen except")
+
+class MongoShared:
+    instance = None
+    @staticmethod
+    def share():
+        if MongoShared.instance is None:
+            MongoShared.instance = Mongo()
+        return MongoShared.instance
+
+class Tool:
+            
+    def __init__(self):
         self.video_path = '/Volumes/data/toutiao'
         isExists = os.path.exists(self.video_path)
         if not isExists:
@@ -97,7 +135,7 @@ class Tool:
         isLoop = True
         while isLoop:
             try:
-                items = self.user_video_infos.aggregate([{"$match": {"upload_status": {"$exists": False}}},{"$lookup": { "from": "user.video.urls", "let": { "info_video_id": "$video_id"}, "pipeline": [ { "$match": {"$expr": { "$eq": ["$$info_video_id", "$video_id"]} } } ], "as": "video_urls" }}, {"$match": {"$expr": {"$ne": [{"$size":"$video_urls"}, 0] } } }, {"$replaceRoot": {"newRoot": {"video_id": "$video_id", "urlObj": {"$arrayElemAt": [ "$video_urls",0]} }}}, {"$replaceRoot": {"newRoot":{"video_id": "$video_id", "url": {"$arrayElemAt": [ "$urlObj.urls",0]}}}}, {"$limit": 9}])
+                items = MongoShared.share().findNeedDownloadVideos()
                 if items.alive == False:
                     items_contine_zero_count += 1
                     if items_contine_zero_count >= 10:
@@ -119,7 +157,7 @@ class Tool:
                         with open(path,  'wb') as f:
                             f.write(res.content)
                             f.flush()
-                            self.user_video_infos.update_one({"video_id": item["video_id"]},{"$set": {"upload_status": "download success"}})
+                            MongoShared.share().downloadSuccess(item["video_id"])
                     else:
                         print("download error")
 
@@ -160,7 +198,7 @@ class Tool:
                 self.extractVideoName(name)
     def extractVideoName(self, name):
         while True:
-            item = self.user_video_infos.find_one({"upload_status": "download success", "source": name})
+            item = MongoShared.share().findNeedExtractVideo()
             print(item)
             if item == None:
                 break
@@ -168,14 +206,14 @@ class Tool:
                 filepath = os.path.join(self.video_path, item["video_id"])
                 outpath = self.removeLogo(filepath, self.user_infos[item['source']])
                 shutil.move(outpath, os.path.join(self.up_path, item["video_id"] + ".mp4"))
-                self.user_video_infos.update_one({'video_id': item['video_id']}, {'$set': {'upload_status': "extract success"}})
+                MongoShared.share().extractSuccess(item["video_id"])
     def uploadVideos(self):
         for obj in self.user_infos.items():
             name = obj[0]
             if obj[1]['is_upload'] == True:
                 self.uploadVideoName(name)
     def uploadVideoName(self, name):
-        infos = self.user_video_infos.find({"source": name, "upload_status": "extract success"}).sort("publish_time",pymongo.ASCENDING)
+        infos = MongoShared.share().findNeedUploadVideos(name)
         for info in infos:
             file_path = os.path.join(self.up_path, info["video_id"] + ".mp4")
             if os.path.exists(file_path) == True:
@@ -192,27 +230,11 @@ class Tool:
                 subprocess.check_call(args = sub_client, shell=True)
                 sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=/Users/yijian/Desktop/dy/client_ms.json --title=\"" + title +  "\" --tags=\"" + tags + "\" " + file_path
                 subprocess.check_call(args = sub, shell=True)
-                self.user_video_infos.update_one({"video_id": info["video_id"]},{"$set": {"upload_status": "upload success"}})
+                MongoShared.share().uploadSuccess(info["video_id"])
             else:
                 print("not find file for video id: {}".format(info['video_id']))
     def listen(self):
-        while True:
-            try:
-                old_video_id = ""
-                with self.user_video_urls.watch([{"$match": { "$or": [{'operationType': 'insert'}, {'operationType': 'replace'}]}}]) as steam:
-                    for change in steam:
-                        video_id = change['fullDocument']['video_id']
-                        if video_id == old_video_id:
-                            continue
-                        else:
-                            old_video_id = video_id
-                            doc = self.user_video_infos.find_one({"video_id": video_id})
-                            print(doc['source'])
-                            if doc != None:
-                                self.user_video_stop.update_one({"source": doc['source']},{"$inc": {"complete_count": 1}},True)
-            except:
-                print("listen except")
-
+        MongoShared.share().listen()
 
 
                 
