@@ -109,4 +109,3 @@ if __name__ == '__main__':
     action.me()
     action.liker("一点观世界", False)
     action.liker("乐播大剧", False)
-    action.liker("南瓜侃电影", False)
