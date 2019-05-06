@@ -90,6 +90,7 @@ class Action():
                     break
                 else:
                     media.click()
+                    time.sleep(0.5)
             try:
                 self.downSwipe_m()
                 noMore = self.driver.find_elements_by_id('com.ss.android.article.news:id/z0')
@@ -106,6 +107,6 @@ class Action():
 if __name__ == '__main__':
     action = Action()
     action.me()
-    #action.liker("一点观世界", False)
-    #action.liker("乐播大剧", True)
-    action.liker("南瓜侃电影", True)
+    action.liker("一点观世界", False)
+    action.liker("乐播大剧", False)
+    action.liker("南瓜侃电影", False)

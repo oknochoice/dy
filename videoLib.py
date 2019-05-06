@@ -1,3 +1,4 @@
+import multiprocessing
 import json
 import pymongo
 import shutil
@@ -11,6 +12,7 @@ import time
 import json
 import re
 import thulac
+import traceback
 
 class Data:
     def remove_extra_symbol(self, file_path):
@@ -83,11 +85,11 @@ class Mongo:
         self.user_video_urls = self.db['user.video.urls']
         self.user_video_stop = self.db['user.video.stop']
     def findNeedDownloadVideos(self):
-        return self.user_video_infos.aggregate([{"$match": {"upload_status": {"$exists": False}}},{"$lookup": { "from": "user.video.urls", "let": { "info_video_id": "$video_id"}, "pipeline": [ { "$match": {"$expr": { "$eq": ["$$info_video_id", "$video_id"]} } } ], "as": "video_urls" }}, {"$match": {"$expr": {"$ne": [{"$size":"$video_urls"}, 0] } } }, {"$replaceRoot": {"newRoot": {"video_id": "$video_id", "urlObj": {"$arrayElemAt": [ "$video_urls",0]} }}}, {"$replaceRoot": {"newRoot":{"video_id": "$video_id", "url": {"$arrayElemAt": [ "$urlObj.urls",0]}}}}, {"$limit": 9}])
+        return self.user_video_infos.aggregate([{"$match": {"upload_status": {"$exists": False}}},{"$lookup": { "from": "user.video.urls", "let": { "info_video_id": "$video_id"}, "pipeline": [ { "$match": {"$expr": { "$eq": ["$$info_video_id", "$video_id"]} } } ], "as": "video_urls" }}, {"$match": {"$expr": {"$ne": [{"$size":"$video_urls"}, 0] } } }, {"$replaceRoot": {"newRoot": {"video_id": "$video_id", "urlObj": {"$arrayElemAt": [ "$video_urls",0]} }}}, {"$replaceRoot": {"newRoot":{"video_id": "$video_id", "url": {"$arrayElemAt": [ "$urlObj.urls",0]}}}}, {"$limit": 100}])
     def downloadSuccess(self, video_id):
         self.user_video_infos.update_one({"video_id": video_id},{"$set": {"upload_status": "download success"}})
-    def findNeedExtractVideo(self, name):
-        return self.user_video_infos.find_one({"upload_status": "download success", "source": name})
+    def findNeedExtractVideos(self, name):
+        return self.user_video_infos.find({"upload_status": "download success", "source": name}).sort("publish_time",pymongo.ASCENDING)
     def extractSuccess(self, video_id):
         self.user_video_infos.update_one({'video_id': video_id}, {'$set': {'upload_status': "extract success"}})
     def findNeedUploadVideos(self, name):
@@ -121,8 +123,33 @@ class MongoShared:
         return MongoShared.instance
 
 class Tool:
+
+    class Download:
+        def downloadVideos(self, video_path, item):
+            #print("download pid: {}, item: {}".format(os.getpid(), item))
+            #return {"isSuccess": False, "video_id": item["video_id"]}
+            s = requests.Session()
+            s.mount('http://', requests.adapters.HTTPAdapter(max_retries=5))
+            s.mount('https://', requests.adapters.HTTPAdapter(max_retries=5))
+            headers = {'User-Agent': 'com.ss.android.ugc.aweme/340 (Linux; U; Android 8.1.0; zh_CN; ZTE V0900; Build/OPM1.171019.026; Cronet/58.0.2991.0)'}
+            res = s.get(item['url'], stream = True, timeout=5, headers = headers)
+            if res.ok:
+                filename = item['video_id']
+                path = os.path.join(video_path, filename)
+                with open(path,  'wb') as f:
+                    f.write(res.content)
+                    f.flush()
+                    return {"isSuccess": True, "video_id": item["video_id"]}
+            else:
+                print("download error")
+                return {"isSuccess": False, "video_id": item["video_id"]}
+        def callback(self, item):
+            print("callback pid: {}, item: {}".format(os.getpid(), item))
+            if item["isSuccess"]:
+                MongoShared.share().downloadSuccess(item["video_id"])
             
     def __init__(self):
+        self.download = Tool.Download()
         self.video_path = '/Volumes/data/toutiao'
         isExists = os.path.exists(self.video_path)
         if not isExists:
@@ -151,7 +178,6 @@ class Tool:
                     headers = {'User-Agent': 'com.ss.android.ugc.aweme/340 (Linux; U; Android 8.1.0; zh_CN; ZTE V0900; Build/OPM1.171019.026; Cronet/58.0.2991.0)'}
                     res = s.get(item['url'], stream = True, timeout=5, headers = headers)
                     if res.ok:
-                        print(item)
                         filename = item['video_id']
                         path = os.path.join(self.video_path, filename)
                         with open(path,  'wb') as f:
@@ -164,6 +190,22 @@ class Tool:
             except:
                 isLoop = False
                 print("download except")
+    def downloadVideos_multi(self):
+        isLoop = True
+        while isLoop:
+            try:
+                items = MongoShared.share().findNeedDownloadVideos()
+                if items.alive == False:
+                    time.sleep(3)
+                    continue
+                pool = multiprocessing.Pool(processes=10)
+                for item in items:
+                    pool.apply_async(self.download.downloadVideos, (self.video_path, item), callback=self.download.callback)
+                pool.close()
+                pool.join()
+            except :
+                isLoop = False
+                print("download multi error: {}".format(traceback.format_exc()))
     def logoXigua(self, vw: float, vh: float):
         h = 140.0 / 1460.0 * vh
         w = h * 500.0 / 140.0
@@ -197,8 +239,8 @@ class Tool:
             if obj[1]['is_upload'] == True:
                 self.extractVideoName(name)
     def extractVideoName(self, name):
-        while True:
-            item = MongoShared.share().findNeedExtractVideo()
+        items = MongoShared.share().findNeedExtractVideos(name)
+        for item in items:
             print(item)
             if item == None:
                 break
@@ -231,12 +273,16 @@ class Tool:
                 sub = "proxychains4 /Users/yijian/Desktop/dy/youtube-upload-master/bin/youtube-upload --client-secrets=/Users/yijian/Desktop/dy/client_ms.json --title=\"" + title +  "\" --tags=\"" + tags + "\" " + file_path
                 subprocess.check_call(args = sub, shell=True)
                 MongoShared.share().uploadSuccess(info["video_id"])
+                os.remove(file_path)
             else:
                 print("not find file for video id: {}".format(info['video_id']))
     def listen(self):
         MongoShared.share().listen()
 
-
+if __name__ == '__main__':
+    print("main pid: {}".format(os.getpid()))
+    t = Tool()
+    t.downloadVideos_multi()
                 
 
 

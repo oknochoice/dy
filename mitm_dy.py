@@ -325,7 +325,9 @@ class Mongo:
         with open('toutiao_bunyun.json', 'r') as f:
             self.user_infos = json.load(f)
     def video_info_upsert_one(self, info:dict):
-        return self.user_video_infos.update_one({'video_id': info["video_id"]}, { '$set': info}, True)
+        re = self.user_video_infos.update_one({'video_id': info["video_id"]}, { '$set': info}, upsert=True)
+        logging.info("matched_cout: {}, modified_count: {}".format(re.matched_count, re.modified_count))
+
 class Singleton_Mongo:
     instance = None
     @staticmethod
@@ -341,7 +343,7 @@ class UserInfoer:
         ctx.log.alert('load begin')
         logging.getLogger('').handlers = []
         log_format = "[%(asctime)s:%(levelname)s:%(thread)d:%(filename)s:%(lineno)d:%(funcName)s]%(message)s"
-        logging.basicConfig(filename='1m.log', level=logging.DEBUG, format=log_format)
+        logging.basicConfig(filename='1m.log', level=logging.ERROR, format=log_format)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("wsgi").setLevel(logging.WARNING)
@@ -492,6 +494,7 @@ class UserInfoer:
                     video_info["title"] = content["title"]
                     video_info["video_watch_count"] = content["video_detail_info"]["video_watch_count"]
                     Singleton_Mongo.get_instance().video_info_upsert_one(video_info)
+
             except:
                 logging.error('tt video list info error: %s', traceback.format_exc())
 
